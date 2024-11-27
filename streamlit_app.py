@@ -126,13 +126,14 @@ Code -> Render : Automatically update diagram
                 time.sleep(0.01)
                 st.rerun()
 
-        st.caption(
-            "👋 Welcome to your AI UML Assistant! You can chat to create or modify UML diagrams, "
-            "or edit the code directly in the panel. You can also ask to explain the current code. "
-            "Need inspiration? Check out [Real World PlantUML](https://real-world-plantuml.com/) "
-            "for examples and starting points. "
-            "How would you like to begin?"
-        )
+        if not agent.get_chat_history():
+            st.caption(
+                "👋 Welcome to your AI UML Assistant! You can chat to create or modify UML diagrams, "
+                "or edit the code directly in the panel. You can also ask to explain the current code. "
+                "Need inspiration? Check out [Real World PlantUML](https://real-world-plantuml.com/) "
+                "for examples and starting points. "
+                "How would you like to begin?"
+            )
 
 
 AGENT_DESCRIPTION = """
