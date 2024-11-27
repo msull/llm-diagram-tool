@@ -1,19 +1,30 @@
-# 🎈 Blank app template
+# UML LLM Diagram tool
 
 A simple Streamlit app template for you to modify!
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://diagrams.streamlit.app/)
 
-### How to run it on your own machine
+## Overview
 
-1. Install the requirements
+This app serves as an AI assistant for creating and modifying UML diagrams. Users can interact with the assistant
+through a chat interface and directly edit the UML code in a user-friendly way. The app is currently using GPT 4 Omni
+Mini.
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+## Features
 
-2. Run the app
+- **Interactive Chat**: Engage with an AI assistant to create or modify UML diagrams.
+- **Live Editing**: Edit the diagram code directly and see real-time updates.
+- **Version History**: View and revert to previous versions of the diagram code easily.
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+## How to run it on your own machine
+
+1. Export an OpenAI API key `OPENAI_API_KEY`
+2. Install the requirements
+    ```bash
+    $ pip install -r requirements.txt
+    ```
+3. Run the app
+    ```bash
+    $ streamlit run streamlit_app.py
+    ```
+4. Open your browser to access the app interface.
