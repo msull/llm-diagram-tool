@@ -1,0 +1,9 @@
+boto3
+jsonref
+logzero
+openai
+plantuml
+pydantic
+simplesingletable
+streamlit
+supersullytools>=10.2.2
