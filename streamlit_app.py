@@ -19,9 +19,6 @@ def main():
     if "session_id" not in st.session_state:
         st.session_state.session_id = date_id()
 
-    agent = get_agent(st.session_state.session_id)
-    agent_utils = ChatAgentUtils(agent, use_system_slash_cmds=False)
-
     if "diagram_code_versions" not in st.session_state:
         st.session_state.diagram_code_versions = []
 
@@ -42,6 +39,10 @@ User -> Code : Edit diagram code
 Code -> Render : Automatically update diagram
 @enduml
     """.strip()
+
+    agent = get_agent(st.session_state.session_id)
+    agent_utils = ChatAgentUtils(agent, use_system_slash_cmds=False)
+
 
     col1, col2, col3 = st.columns(3)
 
