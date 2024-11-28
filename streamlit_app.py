@@ -35,7 +35,8 @@ participant "Render Panel" as Render
 
 User -> Chat : Type message
 Chat -> User : Assistant replies
-User -> Code : Edit diagram code
+Chat -> Code: AI Edits diagram code
+User -> Code : Manually Edit diagram code
 Code -> Render : Automatically update diagram
 @enduml
     """.strip()
