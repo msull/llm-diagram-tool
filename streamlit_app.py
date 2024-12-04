@@ -1,14 +1,15 @@
+import random
 import time
+from base64 import b64decode
 
 import streamlit as st
 from logzero import logger
 from plantuml import PlantUML
 from pydantic import BaseModel
-
 from supersullytools.llm.agent import AgentTool, ChatAgent
+from supersullytools.llm.completions import ImagePromptMessage
 from supersullytools.llm.trackers import SessionUsageTracking
 from supersullytools.streamlit.chat_agent_utils import ChatAgentUtils
-from supersullytools.streamlit.misc import simple_fixed_container
 from supersullytools.utils.common_init import get_standard_completion_handler
 from supersullytools.utils.misc import date_id
 
@@ -26,31 +27,18 @@ def main():
         st.session_state.toggle_key_counter = 0
 
     if "diagram_code" not in st.session_state:
-        st.session_state.diagram_code = """
-@startuml
-actor User
-participant "Chat Panel" as Chat
-participant "Code Panel" as Code
-participant "Render Panel" as Render
-
-User -> Chat : Type message
-Chat -> User : Assistant replies
-Chat -> Code: AI Edits diagram code
-User -> Code : Manually Edit diagram code
-Code -> Render : Automatically update diagram
-@enduml
-    """.strip()
+        st.session_state.diagram_code = DEFAULT_DIAGRAM_CODE
 
     agent = get_agent(st.session_state.session_id)
     agent_utils = ChatAgentUtils(agent, use_system_slash_cmds=False)
 
-
     col1, col2, col3 = st.columns(3)
+    # col1, col3 = st.columns(2)
 
     display_code = st.session_state.diagram_code
 
     with col2:
-        with simple_fixed_container():
+        with st.container():
             placeholder = st.empty()
             if st.toggle(
                 "View Previous Versions",
@@ -71,21 +59,14 @@ Code -> Render : Automatically update diagram
                         s = "s" if minus_version > 1 else ""
                         st.caption(f"This is {minus_version} edit{s} ago")
                         display_code = st.session_state.diagram_code_versions[go_back]
-                        if st.button("Replace current with this version"):
-                            st.session_state.diagram_code_versions.append(
-                                st.session_state.diagram_code
-                            )
-                            st.session_state.diagram_code = display_code
-                            st.session_state.toggle_key_counter += 1
-                            st.rerun()
                     st.code(display_code)
 
             else:
                 edited = placeholder.text_area(
-                    "Diagram Code:",
+                    "diagram code",
                     st.session_state.diagram_code,
                     height=600,
-                    label_visibility="collapsed",
+                    # label_visibility="collapsed",
                 )
                 if edited != st.session_state.diagram_code:
                     st.session_state.diagram_code_versions.append(
@@ -95,20 +76,33 @@ Code -> Render : Automatically update diagram
                     st.rerun()
 
     with col3:
-        with simple_fixed_container():
-            if display_code:
-                st.image(get_uml_diagram_svg(display_code))
+        this_theme = st.selectbox(
+            "theme", THEMES, None, disabled="!theme" in display_code
+        )
+        if "!theme" not in display_code and not this_theme:
+            if "random_theme" not in st.session_state:
+                st.session_state.random_theme = random.choice(THEMES)
+
+            this_theme = st.session_state.random_theme
+            if this_theme:
+                with st.container(border=True):
+                    st.caption(f'Shown with theme "{this_theme}"')
+
+                    def _remove():
+                        st.session_state.random_theme = None
+
+                    st.button("Remove", on_click=_remove, use_container_width=True)
+
+        if display_code:
+            if this_theme:
+                lines = display_code.splitlines()
+                lines.insert(1, f"!theme {this_theme}")
+                display_code = "\n".join(lines)
+            st.image(get_uml_diagram_svg(display_code))
 
     with col1:
-        agent.add_to_context("current_diagram", st.session_state.diagram_code)
-
-        before = st.session_state.diagram_code
-        agent_utils.display_chat_and_run_agent(include_function_calls=False)
-        after = st.session_state.diagram_code
-        if before != after:
-            st.session_state.diagram_code_versions.append(before)
-            st.rerun()
-
+        chat_msg = st.chat_input(placeholder="message to ai", max_chars=1000)
+        # chat_msg = st.text_area('message to ai', max_chars=600, height=300)
         if agent.get_chat_history():
             st.caption(
                 "It's generally useful to wipe the chat history any time "
@@ -119,8 +113,14 @@ Code -> Render : Automatically update diagram
                 help="Wipe out the chat history without erasing the diagram code",
                 on_click=agent.reset_history,
             )
+        agent.add_to_context("current_diagram", st.session_state.diagram_code)
 
-        chat_msg = st.chat_input(max_chars=600)
+        before = st.session_state.diagram_code
+        display_chat_and_run_agent(agent_utils, include_function_calls=True)
+        after = st.session_state.diagram_code
+        if before != after:
+            st.session_state.diagram_code_versions.append(before)
+            st.rerun()
 
         if chat_msg:
             if agent_utils.add_user_message(chat_msg):
@@ -128,13 +128,76 @@ Code -> Render : Automatically update diagram
                 st.rerun()
 
         if not agent.get_chat_history():
-            st.caption(
-                "👋 Welcome to your AI UML Assistant! You can chat to create or modify UML diagrams, "
-                "or edit the code directly in the panel. You can also ask to explain the current code. "
-                "Need inspiration? Check out [Real World PlantUML](https://real-world-plantuml.com/) "
-                "for examples and starting points. "
-                "How would you like to begin?"
-            )
+            if st.session_state.diagram_code == DEFAULT_DIAGRAM_CODE:
+                st.caption(
+                    "👋 Welcome to your AI PlantUML Assistant! You can chat to create or modify PlantUML diagrams, "
+                    "or edit the code directly in the panel. You can also ask to explain the current code. "
+                    "Need inspiration? Check out [Real World PlantUML](https://real-world-plantuml.com/) "
+                    "for examples and starting points. PlantUML can produce an incredible variety of diagram types. "
+                    "The [PlantUML Theme Gallery](https://the-lum.github.io/puml-themes-gallery/diagrams/index.html) "
+                    "is another great resource."
+                )
+                st.subheader("Example Diagrams")
+                for title, code in DIAGRAM_EXAMPLES.items():
+                    with st.container(border=True):
+                        st.write(f"**{title}**")
+                        st.popover("code").code(code)
+                        st.image(get_uml_diagram_svg(code))
+                        if st.button("Load this diagram", key=f"load-{title}"):
+                            st.session_state.diagram_code = code
+                            st.rerun()
+
+
+def display_chat_and_run_agent(agent_utils, include_function_calls=True):
+    num_chat_before = len(
+        agent_utils.chat_agent.get_chat_history(
+            include_function_calls=include_function_calls
+        )
+    )
+
+    new_messages = st.container()
+
+    for msg in reversed(
+        agent_utils.chat_agent.get_chat_history(
+            include_function_calls=include_function_calls
+        )
+    ):
+        with st.chat_message(msg.role):
+            if isinstance(msg, ImagePromptMessage):
+                main, images = st.columns((90, 10))
+                with main:
+                    agent_utils.display_chat_msg(msg.content)
+                for x in msg.images:
+                    images.image(b64decode(x.encode()), use_container_width=True)
+            else:
+                agent_utils.display_chat_msg(msg.content)
+
+    with new_messages:
+        if agent_utils.chat_agent.working:
+            with st.status("Agent working...", expanded=True) as status:
+                # Define the callback function within the scope of `status`
+                def status_callback_fn(message):
+                    status.update(label=f"Agent working... {message}", state="running")
+                    st.write(message)
+
+                # Run the agent loop, passing the callback function
+                while agent_utils.chat_agent.working:
+                    agent_utils.chat_agent.run_agent(
+                        status_callback_fn=status_callback_fn
+                    )
+                    time.sleep(0.05)
+
+                # Final status update when the agent completes
+                status.update(
+                    label="Agent completed work!", state="complete", expanded=False
+                )
+
+        # output any new messages
+        for msg in agent_utils.chat_agent.get_chat_history(
+            include_function_calls=include_function_calls
+        )[num_chat_before:]:
+            with st.chat_message(msg.role):
+                agent_utils.display_chat_msg(msg.content)
 
 
 AGENT_DESCRIPTION = """
@@ -219,10 +282,271 @@ def get_session_usage_tracker(session_id: str) -> SessionUsageTracking:
     return SessionUsageTracking()
 
 
-@st.cache_data
+@st.cache_resource()
 def get_uml_diagram_svg(uml_code):
+    logger.info("Getting diagram from remote")
     url = PlantUML(url="http://www.plantuml.com/plantuml/img/")
     return url.get_url(uml_code)
+
+
+THEMES = [
+    "amiga",
+    "aws-orange",
+    "black-knight",
+    "bluegray",
+    "blueprint",
+    "carbon-gray",
+    "cerulean-outline",
+    "cerulean",
+    "cloudscape-design",
+    "crt-amber",
+    "crt-green",
+    "cyborg-outline",
+    "cyborg",
+    "hacker",
+    "lightgray",
+    "mars",
+    "materia-outline",
+    "materia",
+    "metal",
+    "mimeograph",
+    "minty",
+    "mono",
+    "_none_",
+    "plain",
+    "reddress-darkblue",
+    "reddress-darkgreen",
+    "reddress-darkorange",
+    "reddress-darkred",
+    "reddress-lightblue",
+    "reddress-lightgreen",
+    "reddress-lightorange",
+    "reddress-lightred",
+    "sandstone",
+    "silver",
+    "sketchy-outline",
+    "sketchy",
+    "spacelab-white",
+    "spacelab",
+    "sunlust",
+    "superhero-outline",
+    "superhero",
+    "toy",
+    "united",
+    "vibrant",
+]
+
+DEFAULT_DIAGRAM_CODE = """
+@startuml
+actor User
+participant "Chat Panel" as Chat
+participant "Code Panel" as Code
+participant "Render Panel" as Render
+
+User -> Chat : Type message
+Chat -> User : AI replies
+Chat -> Code: AI Edits diagram code
+User -> Code : Manually Edit diagram code
+Code -> Render : Automatically update diagram
+@enduml
+""".strip()
+
+DIAGRAM_EXAMPLES = {
+    "Sequence Diagram": """
+@startuml
+title "File Upload and Processing Workflow"
+
+actor User
+participant Browser
+participant AppServer
+participant FileService
+participant ProcessingQueue
+participant WorkerService
+participant NotificationService
+
+== User Login ==
+User -> Browser : Open Login Page
+Browser -> AppServer : Submit Credentials
+AppServer --> Browser : Return Auth Token
+note over User, Browser : User is authenticated
+
+== File Upload ==
+User -> Browser : Select File for Upload
+Browser -> AppServer : Send File (with Auth Token)
+AppServer -> FileService : Store File
+note over FileService : File stored successfully
+FileService --> AppServer : File Location
+
+== Queue for Processing ==
+AppServer -> ProcessingQueue : Add File to Queue
+note over ProcessingQueue : Queued for processing
+ProcessingQueue --> AppServer : Acknowledgment
+
+== File Processing ==
+WorkerService -> ProcessingQueue : Poll for File
+ProcessingQueue --> WorkerService : Provide File Details
+WorkerService -> FileService : Download File
+WorkerService -> WorkerService : Process File
+WorkerService -> FileService : Upload Processed Result
+FileService --> WorkerService
+""".strip(),
+    "JSON Diagram": """
+@startjson
+{
+  "title": "Pizza Ordering Workflow",
+  "actors": ["Customer", "PizzaApp", "PizzaChef", "DeliveryDriver"],
+  "steps": [
+    { "from": "Customer", "to": "PizzaApp", "action": "Order Pineapple Pizza" },
+    { "from": "PizzaApp", "to": "PizzaChef", "action": "Make Pizza (sigh)" },
+    { "from": "PizzaChef", "to": "DeliveryDriver", "action": "Hand Over Pizza" },
+    { "from": "DeliveryDriver", "to": "Customer", "action": "Deliver with Judgement" }
+  ]
+}
+
+@endjson
+""".strip(),
+    "Class diagram": """
+@startuml
+hide empty members
+
+abstract class AbstractAgent {
+  + perceive()
+  + act()
+  + learn()
+}
+
+interface Environment {
+  + sense()
+  + respond()
+}
+
+interface KnowledgeBase {
+  + store()
+  + retrieve()
+}
+
+Environment <|-- PhysicalEnvironment
+Environment <|-- DigitalEnvironment
+
+abstract class AgentCore {
+  + processInputs()
+  + generateActions()
+}
+
+class AI_Agent {
+  + name: String
+  + id: String
+  + executeTask(task: Task)
+}
+
+class Task {
+  + description: String
+  + execute()
+}
+
+AI_Agent -- Task : performs
+AI_Agent -- KnowledgeBase : interacts with
+AbstractAgent <|-- AI_Agent
+AgentCore *-- AbstractAgent
+
+class Memory {
+  + capacity: int
+  + storeKnowledge(knowledge: Object)
+}
+
+KnowledgeBase *-- Memory
+
+note "The AI_Agent represents an intelligent entity\\nthat can interact with environments and execute tasks." as AgentNote
+AgentNote -- AI_Agent
+
+package Environment_Types <<Environment>> {
+  PhysicalEnvironment --() Robot
+  DigitalEnvironment --() Chatbot
+}
+
+class Robot {
+  + move()
+  + senseSurroundings()
+}
+
+class Chatbot {
+  + converse(input: String)
+  + provideAnswer(question: String)
+}
+
+@enduml
+""".strip(),
+    "State Diagram": """
+@startuml
+state choiceOrderType <<choice>>
+state forkProcessOrder <<fork>>
+state joinComplete <<join>>
+state endSuccess <<end>>
+state CancelOrder <<end>>
+
+[*] --> choiceOrderType : Start
+
+choiceOrderType --> forkProcessOrder : If valid order
+choiceOrderType --> CancelOrder : If order canceled
+choiceOrderType --> endSuccess : If no items selected
+
+forkProcessOrder ---> PaymentProcessing : Process Payment
+forkProcessOrder --> InventoryCheck : Check Inventory
+
+PaymentProcessing --> joinComplete : Payment Successful
+PaymentProcessing --> CancelOrder : Payment Failed
+
+InventoryCheck --> joinComplete : Stock Available
+InventoryCheck --> CancelOrder : Out of Stock
+
+joinComplete --> [*] : Order Complete
+@enduml
+""".strip(),
+    "Entity Relationships": """
+@startuml
+entity "User" {
+  * user_id : UUID
+  * name : String
+  * email : String
+  * password : String
+}
+
+entity "Order" {
+  * order_id : UUID
+  * order_date : Date
+  * total_amount : Decimal
+}
+
+entity "Product" {
+  * product_id : UUID
+  * name : String
+  * description : String
+  * price : Decimal
+  * stock_quantity : Integer
+}
+
+entity "OrderItem" {
+  * order_item_id : UUID
+  * quantity : Integer
+  * subtotal : Decimal
+}
+
+entity "Category" {
+  * category_id : UUID
+  * name : String
+}
+
+User ||--o{ Order : "places"
+Order ||--o{ OrderItem : "contains"
+Product ||--o{ OrderItem : "is part of"
+Category ||--o{ Product : "classifies"
+
+note "Users can place multiple orders.\\nEach order contains multiple items.\\nProducts belong to categories." as Description
+Description -[hidden] User
+
+@enduml
+""".strip(),
+}
 
 
 if __name__ == "__main__":
