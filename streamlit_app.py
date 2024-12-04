@@ -132,24 +132,38 @@ def main():
                 st.rerun()
 
         if not agent.get_chat_history():
-            if st.session_state.diagram_code == DEFAULT_DIAGRAM_CODE:
-                st.caption(
-                    "👋 Welcome to your AI PlantUML Assistant! You can chat to create or modify PlantUML diagrams, "
-                    "or edit the code directly in the panel. You can also ask to explain the current code. "
-                    "Need inspiration? Check out [Real World PlantUML](https://real-world-plantuml.com/) "
-                    "for examples and starting points. PlantUML can produce an incredible variety of diagram types. "
-                    "The [PlantUML Theme Gallery](https://the-lum.github.io/puml-themes-gallery/diagrams/index.html) "
-                    "is another great resource."
-                )
-                st.subheader("Example Diagrams")
-                for title, code in DIAGRAM_EXAMPLES.items():
-                    with st.container(border=True):
-                        st.write(f"**{title}**")
-                        st.popover("code").code(code)
-                        st.image(get_uml_diagram_svg(code))
-                        if st.button("Load this diagram", key=f"load-{title}"):
-                            st.session_state.diagram_code = code
-                            st.rerun()
+            st.caption(
+                "👋 Welcome to your AI PlantUML Assistant! You can chat to create or modify PlantUML diagrams, "
+                "or edit the code directly in the panel. You can also ask to explain the current code. "
+                "Need inspiration? Check out [Real World PlantUML](https://real-world-plantuml.com/) "
+                "for examples and starting points. PlantUML can produce an incredible variety of diagram types. "
+                "The [PlantUML Theme Gallery](https://the-lum.github.io/puml-themes-gallery/diagrams/index.html) "
+                "is another great resource."
+            )
+
+    if (
+        not agent.get_chat_history()
+        and st.session_state.diagram_code == DEFAULT_DIAGRAM_CODE
+    ):
+        st.subheader("Example Diagrams")
+        cols = iter(st.columns(3))
+        for idx, title in enumerate(DIAGRAM_EXAMPLES):
+            if idx % 3 == 0:
+                cols = iter(st.columns(3))
+
+            code = DIAGRAM_EXAMPLES[title]
+            with next(cols).container(border=True):
+                st.write(f"**{title}**")
+                st.popover("code", use_container_width=True).code(code)
+                st.image(get_uml_diagram_svg(code))
+                if st.button(
+                    "Load this diagram",
+                    key=f"load-{title}",
+                    use_container_width=True,
+                    type="primary",
+                ):
+                    st.session_state.diagram_code = code
+                    st.rerun()
 
 
 def display_chat_and_run_agent(agent_utils, include_function_calls=True):
@@ -356,44 +370,6 @@ Code -> Render : Automatically update diagram
 """.strip()
 
 DIAGRAM_EXAMPLES = {
-    "Sequence Diagram": """
-@startuml
-title "File Upload and Processing Workflow"
-
-actor User
-participant Browser
-participant AppServer
-participant FileService
-participant ProcessingQueue
-participant WorkerService
-participant NotificationService
-
-== User Login ==
-User -> Browser : Open Login Page
-Browser -> AppServer : Submit Credentials
-AppServer --> Browser : Return Auth Token
-note over User, Browser : User is authenticated
-
-== File Upload ==
-User -> Browser : Select File for Upload
-Browser -> AppServer : Send File (with Auth Token)
-AppServer -> FileService : Store File
-note over FileService : File stored successfully
-FileService --> AppServer : File Location
-
-== Queue for Processing ==
-AppServer -> ProcessingQueue : Add File to Queue
-note over ProcessingQueue : Queued for processing
-ProcessingQueue --> AppServer : Acknowledgment
-
-== File Processing ==
-WorkerService -> ProcessingQueue : Poll for File
-ProcessingQueue --> WorkerService : Provide File Details
-WorkerService -> FileService : Download File
-WorkerService -> WorkerService : Process File
-WorkerService -> FileService : Upload Processed Result
-FileService --> WorkerService
-""".strip(),
     "JSON Diagram": """
 @startjson
 {
@@ -408,6 +384,46 @@ FileService --> WorkerService
 }
 
 @endjson
+""".strip(),
+    "AWS Serverless API": """
+@startuml Serverless API
+' from https://github.com/awslabs/aws-icons-for-plantuml/blob/main/examples/Serverless%20API.puml
+
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v18.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/AWSExperimental.puml
+!include AWSPuml/ApplicationIntegration/APIGateway.puml
+!include AWSPuml/Compute/Lambda.puml
+!include AWSPuml/Database/DynamoDB.puml
+!include AWSPuml/General/Client.puml
+!include AWSPuml/Groups/AWSCloud.puml
+!include AWSPuml/Storage/SimpleStorageService.puml
+
+' Groups are rectangles with a custom style using stereotype - need to hide
+hide stereotype
+skinparam linetype ortho
+skinparam rectangle {
+    BorderColor transparent
+}
+
+rectangle "$ClientIMG()\\nClient" as client
+AWSCloudGroup(cloud){
+  rectangle "$APIGatewayIMG()\\nAmazon API\\nGateway" as api
+  rectangle "$LambdaIMG()\\nAWS Lambda\\n" as lambda
+  rectangle "$DynamoDBIMG()\\nAmazon DynamoDB\\n" as dynamodb
+  rectangle "$SimpleStorageServiceIMG()\\nAmazon S3" as s3
+  rectangle "$LambdaIMG()\\nAWS Lambda" as trigger
+
+  client -right-> api: <$Callout_1>\\n
+  api -right-> lambda: <$Callout_2>\\n
+  lambda -right-> dynamodb: <$Callout_3>\\n
+  api -[hidden]down-> s3
+  client -right-> s3: <$Callout_4>
+  s3 -right-> trigger: <$Callout_5>\\n
+  trigger -[hidden]up-> lambda
+  trigger -u-> dynamodb: <$Callout_6>\\n
+}
+@enduml    
 """.strip(),
     "Class diagram": """
 @startuml
@@ -479,6 +495,44 @@ class Chatbot {
 }
 
 @enduml
+""".strip(),
+    "Sequence Diagram": """
+@startuml
+title "File Upload and Processing Workflow"
+
+actor User
+participant Browser
+participant AppServer
+participant FileService
+participant ProcessingQueue
+participant WorkerService
+participant NotificationService
+
+== User Login ==
+User -> Browser : Open Login Page
+Browser -> AppServer : Submit Credentials
+AppServer --> Browser : Return Auth Token
+note over User, Browser : User is authenticated
+
+== File Upload ==
+User -> Browser : Select File for Upload
+Browser -> AppServer : Send File (with Auth Token)
+AppServer -> FileService : Store File
+note over FileService : File stored successfully
+FileService --> AppServer : File Location
+
+== Queue for Processing ==
+AppServer -> ProcessingQueue : Add File to Queue
+note over ProcessingQueue : Queued for processing
+ProcessingQueue --> AppServer : Acknowledgment
+
+== File Processing ==
+WorkerService -> ProcessingQueue : Poll for File
+ProcessingQueue --> WorkerService : Provide File Details
+WorkerService -> FileService : Download File
+WorkerService -> WorkerService : Process File
+WorkerService -> FileService : Upload Processed Result
+FileService --> WorkerService
 """.strip(),
     "State Diagram": """
 @startuml
