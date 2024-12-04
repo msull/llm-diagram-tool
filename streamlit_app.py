@@ -13,7 +13,11 @@ from supersullytools.streamlit.chat_agent_utils import ChatAgentUtils
 from supersullytools.utils.common_init import get_standard_completion_handler
 from supersullytools.utils.misc import date_id
 
-st.set_page_config(layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="PlantUML Diagram Editor",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 
 def main():
