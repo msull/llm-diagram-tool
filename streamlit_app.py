@@ -1,13 +1,11 @@
 import random
 import time
-from base64 import b64decode
 
 import streamlit as st
 from logzero import logger
 from plantuml import PlantUML
 from pydantic import BaseModel
 from supersullytools.llm.agent import AgentTool, ChatAgent
-from supersullytools.llm.completions import ImagePromptMessage
 from supersullytools.llm.trackers import SessionUsageTracking
 from supersullytools.streamlit.chat_agent_utils import ChatAgentUtils
 from supersullytools.utils.common_init import get_standard_completion_handler
@@ -120,7 +118,7 @@ def main():
         agent.add_to_context("current_diagram", st.session_state.diagram_code)
 
         before = st.session_state.diagram_code
-        display_chat_and_run_agent(agent_utils, include_function_calls=True)
+        display_chat_and_run_agent(agent_utils, include_function_calls=False)
         after = st.session_state.diagram_code
         if before != after:
             st.session_state.diagram_code_versions.append(before)
@@ -175,20 +173,17 @@ def display_chat_and_run_agent(agent_utils, include_function_calls=True):
 
     new_messages = st.container()
 
+    previous_msg_role = ""
     for msg in reversed(
         agent_utils.chat_agent.get_chat_history(
             include_function_calls=include_function_calls
         )
     ):
+        if msg.role == previous_msg_role:
+            st.divider()
+        previous_msg_role = msg.role
         with st.chat_message(msg.role):
-            if isinstance(msg, ImagePromptMessage):
-                main, images = st.columns((90, 10))
-                with main:
-                    agent_utils.display_chat_msg(msg.content)
-                for x in msg.images:
-                    images.image(b64decode(x.encode()), use_container_width=True)
-            else:
-                agent_utils.display_chat_msg(msg.content)
+            agent_utils.display_chat_msg(msg.content)
 
     with new_messages:
         if agent_utils.chat_agent.working:
@@ -247,7 +242,7 @@ When the user asks for changes to be made to the active UML diagram, you may dir
 - Remember that different types of UML diagrams (e.g., sequence vs. class diagrams) have different components and purposes. Adjust your explanations accordingly.
 - Avoid making changes without confirming with the user, particularly when there's ambiguity in their request.
 - Whenever changes are made, make sure the explanation precedes the code to maintain transparency.
-- Do not directly put the code into the chat with the user (other than snippets for explanations when needed)
+- The user can see the diagram and current version of the code at all times so do not repeat the code to them, other than small snippets if needed for explanations
 """.strip()
 
 
@@ -278,7 +273,7 @@ def get_agent(session_id: str) -> ChatAgent:
         ]
     }
     return ChatAgent(
-        agent_description="You are a helpful assistant.",
+        agent_description=AGENT_DESCRIPTION,
         logger=logger,
         completion_handler=get_standard_completion_handler(
             include_session_tracker=False,
