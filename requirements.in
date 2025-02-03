@@ -6,4 +6,4 @@ plantuml
 pydantic
 simplesingletable
 streamlit
-supersullytools>=10.2.2
+supersullytools>=14.0.0
