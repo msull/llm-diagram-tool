@@ -1,18 +1,16 @@
-# UML LLM Diagram tool
-
-A simple Streamlit app template for you to modify!
+# PlantUML LLM Diagram tool
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://diagrams.streamlit.app/)
 
 ## Overview
 
-This app serves as an AI assistant for creating and modifying UML diagrams. Users can interact with the assistant
-through a chat interface and directly edit the UML code in a user-friendly way. The app is currently using GPT 4 Omni
+This app serves as an AI assistant for creating and modifying PlantUML diagrams. Users can interact with the assistant
+through a chat interface and directly edit the PlantUML code in a user-friendly way. The app is currently using GPT 4 Omni
 Mini.
 
 ## Features
 
-- **Interactive Chat**: Engage with an AI assistant to create or modify UML diagrams.
+- **Interactive Chat**: Engage with an AI assistant to create or modify PlantUML diagrams.
 - **Live Editing**: Edit the diagram code directly and see real-time updates.
 - **Version History**: View and revert to previous versions of the diagram code easily.
 
