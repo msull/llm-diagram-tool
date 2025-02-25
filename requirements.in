@@ -5,5 +5,5 @@ openai
 plantuml
 pydantic
 simplesingletable
-streamlit
-supersullytools>=14.0.0
+streamlit>=1.42.2
+supersullytools>=14.1.0
