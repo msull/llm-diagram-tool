@@ -1,11 +1,12 @@
 import random
 import time
+from datetime import timedelta
 
 import streamlit as st
 from logzero import logger
 from plantuml import PlantUML
 from pydantic import BaseModel
-from supersullytools.llm.agent import AgentTool, ChatAgent
+from supersullytools.llm.agent import AgentTool, ChatAgent, AgentToolResponse
 from supersullytools.llm.trackers import SessionUsageTracking
 from supersullytools.streamlit.chat_agent_utils import ChatAgentUtils
 from supersullytools.utils.common_init import get_standard_completion_handler
@@ -222,27 +223,19 @@ Make sure to present explanations in a way that the user can not only understand
 
 # Instructions for Interaction
 - Ask follow-up questions when necessary to clarify the user's needs regarding modifications or areas of concern.
-- Always explain the modifications you are making before updating the code. Break down how the changes will affect the final diagram.
 - Use easy-to-understand language, while highlighting key components of UML diagrams such as Classes, Relationships, Dependencies, etc.
 - Be ready to handle different types of UML diagrams such as Class, Sequence, Activity, Use Case, etc.
 
 # Usage of the Diagram Modification Tool
-When the user asks for changes to be made to the active UML diagram, you may directly modify the current state of the diagram code.
-
-- Before you execute a change, explain what you are about to alter. This makes sure the user understands what will happen to the diagram.
-- Be as explicit as possible when describing updates. Include the specific diagram elements, such as relationships, classes, or entities, affected by the changes.
-
-# Steps
-1. **Understand User Intent**: Ensure you completely grasp what type of UML diagram the user is referring to and the modifications they need.
-2. **Provide Reasoning for Updates**: Describe in detail how the requested changes affect the diagram. Highlight any relevant relationships or structures affected.
-3. **Make Code Changes**: Use the given tool to modify the diagram code. Update the state of the UML accordingly.
-4. **Confirm the Changes**: Let the user view the updated raw code and rendered UML diagram, and ask if the latest changes meet their expectations.
+When the user asks for changes to be made to the active UML diagram, you may directly modify the current state of the diagram code. 
+Provide a brief expalanation of the changes you are making, but do not include the code itself in your explanations.
 
 # Notes
-- Remember that different types of UML diagrams (e.g., sequence vs. class diagrams) have different components and purposes. Adjust your explanations accordingly.
-- Avoid making changes without confirming with the user, particularly when there's ambiguity in their request.
-- Whenever changes are made, make sure the explanation precedes the code to maintain transparency.
-- The user can see the diagram and current version of the code at all times so do not repeat the code to them, other than small snippets if needed for explanations
+- Remember that different types of UML diagrams (e.g., sequence vs. class diagrams) have different components and purposes. Adjust your code and explanations accordingly.
+
+<important>
+- The user can see the diagram and current version of the code at all times so do not repeat the code to them
+</important>
 """.strip()
 
 
@@ -256,10 +249,10 @@ def handle_update_uml_diagram_tool(params: UpdateUmlDiagramCode):
     get_agent(st.session_state.session_id).add_to_context(
         "current_diagram", st.session_state.diagram_code
     )
-    return "Diagram updated!"
+    return AgentToolResponse(output_content="Diagram updated!", replace_input="")
 
 
-@st.cache_resource
+@st.cache_resource(ttl=timedelta(hours=1))
 def get_agent(session_id: str) -> ChatAgent:
     _ = session_id
     tool_profiles = {
@@ -286,10 +279,13 @@ def get_agent(session_id: str) -> ChatAgent:
         max_consecutive_tool_calls=1,
         default_completion_model="GPT 4 Omni Mini",
         require_reason=False,
+        user_preferences=[
+            "Remember to NOT include large sections of the code in your chat responses -- I hvae a limited display for your response, and the code is always visible to me!!"
+        ],
     )
 
 
-@st.cache_resource
+@st.cache_resource(ttl=timedelta(hours=1))
 def get_session_usage_tracker(session_id: str) -> SessionUsageTracking:
     _ = session_id
     return SessionUsageTracking()
